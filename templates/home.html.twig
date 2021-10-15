@@ -1,0 +1,135 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Homepage{% endblock %}
+
+{% block body %}
+
+    <h1>Home page</h1>
+    <br/>
+    <div>
+        <span>Logged as username:"{{ user.username }}". Your role is: {{ user.roles|join(', ') }}</span>
+    </div>
+    <br/>
+    <h3>You can chat with these Users</h3>
+    <hr>
+    <table id="tchatUsersAvailable" class="table table-striped" style="width:100%">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role(s)</th>
+                <th>Tchat</th>
+                <th>History</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.roles|join(', ') }}</td>
+                <td>
+                    <a href="#" class="openLiveTchat" data-to="{{ user.id }}" data-username="{{ user.username }}">Tchat now</a>
+                </td>
+                <td><a href="{{ path('tchat_history') }}">See history</a></td>
+            </tr>
+            {% endfor %}
+            
+        </tbody>
+    </table>
+    <h3>Live Tchat</h3>
+    <ul id="tchatTabs" class="nav nav-tabs hide">
+    </ul>
+    
+    <div id="tchatDisplay">
+        <h5>no opened tchat..</h5>
+    </div>
+    <hr>
+    <div>
+        <span>Send a message:
+            <input type="text" id="tchatMsgInput" data-to="" disabled/>
+            <button type="submit" id="tchatMsgSend">Send</button>
+        </span>
+    </div>
+    <div>
+        <a href="{{ path('logout') }}">Logout</a>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $('#tchatUsersAvailable').DataTable();
+
+            var conn = new WebSocket('ws://localhost:8080');
+            conn.onopen = function(e) {
+                console.log(e);
+                console.log("Connection established!");
+
+
+                $('#tchatMsgSend').on('click', sendBtnEventListener);
+            
+                //register on WS server to get a resourceId
+                conn.send(JSON.stringify({
+                    "action": "register",
+                    "username": "{{ user.username }}",
+                    "password": "{{ user.password }}"
+                }));
+            };
+
+            conn.onmessage = function(e) {
+                console.log(e.data);
+            };
+
+            $(document).on('click', '.openLiveTchat', openLiveTchat);
+
+            function openLiveTchat(event){
+                //check is tchat already opened
+                if($('a.nav-item[data-to="'+$(event.target).data('to')+'"]').length > 0){
+                        $('a.nav-item[data-to="'+$(event.target).data('to')+'"]').trigger('click');
+                } else {
+                    $('#tchatTabs').find('a.nav-link.active').removeClass('active');
+                    let toUserId = $(event.target).data('to');
+                    let toUserName = $(event.target).data('username');
+                    console.log(toUserName);
+
+                    let $navLink = $('<a/>').text(toUserName).data({
+                        'to': toUserId, 'username': toUserName
+                    }).addClass('nav-link active');
+                    let $newLi = $('<li/>').addClass('nav-item').append($navLink);
+
+                    $('#tchatTabs').append($newLi);
+
+                    let $newTchatBox = $('<div/>').addClass('tchatBox').data('to', username).html('send a message to '+username+' !');
+                    $('#tchatDisplay').append($newTchatBox);
+
+                    $navLink.trigger('click');
+                }
+            }
+
+            $(document).on('click', '.nav-link', changeActiveTchat);
+
+            function changeActiveTchat(event){
+                $('#tchatTabs').hide();
+                $('#tchatTabs').find('a.nav-link.active').removeClass('active');
+                $(event.target).addClass('active');
+                let username = $(event.target).data('username');
+                console.log(username);
+
+                $('#tchatDisplay').find('.tchatBox').hide();
+                $('#tchatDisplay').find('.tchatBox[data-to="'+username+'"]').show();
+
+                $('#tchatMsgInput').data('to', $(event.target).data('to')).prop('disabled', false);
+                $('#tchatTabs').show();
+            }
+
+            function sendBtnEventListener(){
+                console.log($('#tchatMsgInput'));
+
+                conn.send(JSON.stringify({
+                    "action": "message",
+                    "message": $('#tchatMsgInput').val(),
+                    "to": 0
+                }));
+            };
+        });        
+    </script>
+{% endblock %}
