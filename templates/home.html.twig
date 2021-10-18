@@ -7,7 +7,7 @@
     <h1>Home page</h1>
     <br/>
     <div>
-        <span>Logged as username:"{{ user.username }}". Your role is: {{ user.roles|join(', ') }}</span>
+        <span>Logged as username:"{{ app.user.username }}". Your role is: {{ app.user.roles|join(', ') }}</span>
     </div>
     <br/>
     <h3>You can chat with these Users</h3>
@@ -29,7 +29,7 @@
                 <td>
                     <a href="#" class="openLiveTchat" data-to="{{ user.id }}" data-username="{{ user.username }}">Tchat now</a>
                 </td>
-                <td><a href="{{ path('tchat_history') }}">See history</a></td>
+                <td><a href="{{ path('tchat_history', {'fromUserId': app.user.id, 'toUserId': user.id}) }}">See history</a></td>
             </tr>
             {% endfor %}
             
@@ -40,7 +40,7 @@
     </ul>
     
     <div id="tchatDisplay">
-        <h5>no opened tchat..</h5>
+        <h5 id="no-open-tchat-helper">no opened tchat..</h5>
     </div>
     <hr>
     <div>
@@ -64,41 +64,57 @@
                 console.log(e);
                 console.log("Connection established!");
 
-
                 $('#tchatMsgSend').on('click', sendBtnEventListener);
+                $('#tchatMsgInput').on('keypress', function(e) {
+                    //if Enter pressed 
+                    if(e.which == 13) {
+                        sendBtnEventListener();
+                    }
+                });
             
                 //register on WS server to get a resourceId
                 conn.send(JSON.stringify({
                     "action": "register",
-                    "username": "{{ user.username }}",
-                    "password": "{{ user.password }}"
+                    "username": "{{ app.user.username }}",
+                    "password": "{{ app.user.password }}"
                 }));
             };
 
             conn.onmessage = function(e) {
-                console.log(e.data);
+                console.log("New message !");
+                console.log(e);
+
+                let msgData = JSON.parse(e.data);
+
+                $('.openLiveTchat[data-to='+msgData.userFrom+']').trigger('click');
+
+                $('.tchatBox[data-to='+msgData.userFrom+']').append(createMessageView(msgData, true));
             };
 
             $(document).on('click', '.openLiveTchat', openLiveTchat);
 
             function openLiveTchat(event){
+                $('#no-open-tchat-helper').remove();
+
                 //check is tchat already opened
-                if($('a.nav-item[data-to="'+$(event.target).data('to')+'"]').length > 0){
-                        $('a.nav-item[data-to="'+$(event.target).data('to')+'"]').trigger('click');
+                if($('a.nav-link[data-to='+$(event.target).attr('data-to')+']').length > 0){
+                        $('a.nav-link[data-to='+$(event.target).attr('data-to')+']').trigger('click');
                 } else {
                     $('#tchatTabs').find('a.nav-link.active').removeClass('active');
-                    let toUserId = $(event.target).data('to');
-                    let toUserName = $(event.target).data('username');
-                    console.log(toUserName);
+                    let toUserId = $(event.target).attr('data-to');
+                    let toUserName = $(event.target).attr('data-username');
 
-                    let $navLink = $('<a/>').text(toUserName).data({
-                        'to': toUserId, 'username': toUserName
+                    let $navLink = $(document.createElement('a')).text(toUserName).attr({
+                        'data-to': toUserId, 'data-username': toUserName
                     }).addClass('nav-link active');
-                    let $newLi = $('<li/>').addClass('nav-item').append($navLink);
+                    let $newLi = $(document.createElement('li')).addClass('nav-item').append($navLink);
 
                     $('#tchatTabs').append($newLi);
 
-                    let $newTchatBox = $('<div/>').addClass('tchatBox').data('to', username).html('send a message to '+username+' !');
+                    let $newTchatBox = $(document.createElement('div')).addClass('tchatBox').attr('data-to', toUserId).html(createMessageView({
+                        "date": formatDate(new Date()),
+                        "content": "send a message to "+toUserName+' !'
+                    }, true));
                     $('#tchatDisplay').append($newTchatBox);
 
                     $navLink.trigger('click');
@@ -111,25 +127,60 @@
                 $('#tchatTabs').hide();
                 $('#tchatTabs').find('a.nav-link.active').removeClass('active');
                 $(event.target).addClass('active');
-                let username = $(event.target).data('username');
-                console.log(username);
+                let toUserId = $(event.target).attr('data-to');
 
                 $('#tchatDisplay').find('.tchatBox').hide();
-                $('#tchatDisplay').find('.tchatBox[data-to="'+username+'"]').show();
+                $('#tchatDisplay').find('.tchatBox[data-to='+toUserId+']').show();
 
-                $('#tchatMsgInput').data('to', $(event.target).data('to')).prop('disabled', false);
+                $('#tchatMsgInput').attr('data-to', toUserId);
+                $('#tchatMsgInput').prop('disabled', false);
                 $('#tchatTabs').show();
             }
 
             function sendBtnEventListener(){
-                console.log($('#tchatMsgInput'));
 
                 conn.send(JSON.stringify({
                     "action": "message",
                     "message": $('#tchatMsgInput').val(),
-                    "to": 0
+                    "to": $('#tchatMsgInput').attr('data-to')
                 }));
+
+                $('.tchatBox[data-to='+$('#tchatMsgInput').attr('data-to')+']').append(createMessageView({
+                    "date": formatDate(new Date()),
+                    "content": $('#tchatMsgInput').val()
+                }, false));
+
+                $('#tchatMsgInput').val('');
+
             };
+
+            function createMessageView(msgData, isReceived){
+                let $msgDiv = $(document.createElement('div')).addClass('message')
+
+                if(isReceived) $msgDiv.css('background-color', 'lightblue');
+                else $msgDiv.css('background-color', 'lightgray');
+
+                let $msgBox = $(document.createElement('span')).text(msgData.date+' - '+msgData.content);
+                $msgDiv.append($msgBox);
+
+                return $msgDiv;
+
+            }
+
+            //format date utils 
+            Number.prototype.padLeft = function(base,chr){
+                var  len = (String(base || 10).length - String(this).length)+1;
+                return len > 0? new Array(len).join(chr || '0')+this : this;
+            }
+
+            function formatDate(d){
+                return [(d.getMonth()+1).padLeft(),
+               d.getDate().padLeft(),
+               d.getFullYear()].join('-') +' ' +
+              [d.getHours().padLeft(),
+               d.getMinutes().padLeft(),
+               d.getSeconds().padLeft()].join(':');
+            }
         });        
     </script>
 {% endblock %}

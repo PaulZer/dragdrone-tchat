@@ -26,7 +26,6 @@ class Tchat implements MessageComponentInterface {
         $numRecv = count($this->clients) - 1;
 
         $msgData = json_decode($msg, true);
-        dump($msgData);
 
         switch ($msgData["action"]) {
             case 'register':
@@ -35,13 +34,6 @@ class Tchat implements MessageComponentInterface {
             case 'message':
                 $this->sendMessage($from, $msgData);
                 break;
-        }
-
-        foreach ($this->clients as $resourceId => $client) {
-            if ($from !== $client) {
-                // The sender is not the receiver, send to each client connected
-                $client->send($msg);
-            }
         }  
     }
 
@@ -59,7 +51,9 @@ class Tchat implements MessageComponentInterface {
             $this->entityManager->flush();
 
             echo "User {$userDisconnected->getUsername()} has disconnected and its resourceId ({$conn->resourceId}) has been unset.\n";
-        } else echo "Could nor retrieve user from the disconnecting resourceId ({$conn->resourceId}).\n";     
+        } else echo "Could nor retrieve user from the disconnecting resourceId ({$conn->resourceId}).\n";
+
+     
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e) {
@@ -92,20 +86,22 @@ class Tchat implements MessageComponentInterface {
 
             $userTo = $this->entityManager->getRepository('App\Entity\User')->find($to);
             if($userTo){
+                echo "Message recipient username is {$userTo->getUsername()}.\n";
                 if(!(in_array('ROLE_ADMIN', $userFrom->getRoles()) || in_array('ROLE_ADMIN', $userTo->getRoles()))){
                     echo "Can't send message. Users are not allowed to talk to each other.\n";
                 } else {
                     $tchatMsg = new TchatMessage($userFrom, $userTo, (string) $msgData["message"]);
 
-                    dump($TchatMessage);
+                    $userToResourceId = $userTo->getTchatResourceId();
 
-                    $userToResourceId = $userTo->getResourceId();
-                    if($userToResourceId > 0){
+                    if($userToResourceId > 0 && isset($this->clients[$userToResourceId])){
+                        echo "Message recipient is connected. Sending message with webSocket.\n";
                         $userToConn = $this->clients[$userToResourceId];
                         $userToConn->send($tchatMsg->serializeJSON());
-                    }
+                    } else echo "Recipient user is not connected, but the message will be saved anyway in the conversation history."; 
 
-                    //todo persist chat
+                    $this->entityManager->persist($tchatMsg);
+                    $this->entityManager->flush();
                 }                
             }
         } else echo "Could not retrieve sender. User with resourceId ({$from->resourceId} has not registered.\n";  

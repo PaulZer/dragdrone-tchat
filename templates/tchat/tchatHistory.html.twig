@@ -1,0 +1,65 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Homepage{% endblock %}
+
+{% block body %}
+
+    <div>
+        <a href="{{ path('home') }}">Back to Home</a>
+    </div>
+    <h1>Tchat History</h1>
+    <h3>with user {{ toUser.username }}</h3>
+    
+    <br/>
+     {% for tchatMsg in tchatMessages %}
+        {% set bckgrdColor = (app.user.id == tchatMsg.userFrom.id )? 'lightgray':'lightblue' %}
+        <div class="message">
+            <span style="background-color:{{ bckgrdColor }};">
+                {{ tchatMsg.date.format('d-m-y h:i:s') }} - {{ tchatMsg.content }}
+            </span>
+        </div>
+     {% endfor %}
+    
+
+    
+{% endblock %}
+
+{% block javascripts %}
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $('#tchatUsersAvailable').DataTable();
+
+            var conn = new WebSocket('ws://localhost:8080');
+
+
+
+            function createMessageView(msgData, isReceived){
+                let $msgDiv = $(document.createElement('div')).addClass('message')
+
+                if(isReceived) $msgDiv.css('background-color', 'lightblue');
+                else $msgDiv.css('background-color', 'lightgray');
+
+                let $msgBox = $(document.createElement('span')).text(msgData.date+' - '+msgData.content);
+                $msgDiv.append($msgBox);
+
+                return $msgDiv;
+
+            }
+
+            //format date utils 
+            Number.prototype.padLeft = function(base,chr){
+                var  len = (String(base || 10).length - String(this).length)+1;
+                return len > 0? new Array(len).join(chr || '0')+this : this;
+            }
+
+            function formatDate(d){
+                return [(d.getMonth()+1).padLeft(),
+               d.getDate().padLeft(),
+               d.getFullYear()].join('-') +' ' +
+              [d.getHours().padLeft(),
+               d.getMinutes().padLeft(),
+               d.getSeconds().padLeft()].join(':');
+            }
+        });        
+    </script>
+{% endblock %}

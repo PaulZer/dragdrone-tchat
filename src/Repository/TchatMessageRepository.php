@@ -20,31 +20,18 @@ class TchatMessageRepository extends ServiceEntityRepository
     }
 
     // /**
-    //  * @return TchatMessage[] Returns an array of TchatMessage objects
+    //  * @return TchatMessage[] Returns an array of TchatMessage objects based on sender and receiver
     //  */
-    /*
-    public function findByExampleField($value)
+    public function findTchatHistory(int $fromId, int $toId)
     {
-        return $this->createQueryBuilder('t')
-            ->andWhere('t.exampleField = :val')
-            ->setParameter('val', $value)
-            ->orderBy('t.id', 'ASC')
-            ->setMaxResults(10)
+        return $this->createQueryBuilder('tm')
+            ->setParameter('fromId', $fromId)
+            ->setParameter('toId', $toId)
+            ->where('tm.userFrom = :fromId AND tm.userTo = :toId') // sended
+            ->orWhere('tm.userFrom = :toId AND tm.userTo = :fromId') // or received
+            ->orderBy('tm.date', 'ASC')
             ->getQuery()
             ->getResult()
         ;
     }
-    */
-
-    /*
-    public function findOneBySomeField($value): ?TchatMessage
-    {
-        return $this->createQueryBuilder('t')
-            ->andWhere('t.exampleField = :val')
-            ->setParameter('val', $value)
-            ->getQuery()
-            ->getOneOrNullResult()
-        ;
-    }
-    */
 }

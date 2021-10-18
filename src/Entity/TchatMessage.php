@@ -42,7 +42,7 @@ class TchatMessage
     {
         $this->userFrom = $userFrom;
         $this->userTo = $userTo;
-        //$this->date = new \DateTimeI
+        $this->date = new \DateTime();
         $this->setContent($content);
     }
 
@@ -97,5 +97,14 @@ class TchatMessage
         $this->userTo = $userTo;
 
         return $this;
+    }
+
+    public function serializeJSON(){
+        return json_encode([
+            "userFrom" => $this->getUserFrom()->getId(),
+            "userTo" => $this->getUserTo()->getId(),
+            "date" => $this->getDate()->format('d-m-y h:i:s'),
+            "content" => $this->getContent()
+        ]);
     }
 }
